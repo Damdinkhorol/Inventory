@@ -1685,11 +1685,41 @@ fun TransactionsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        when (activeTabFlow) {
-            0 -> IncomingForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
-            1 -> TransferForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
-            2 -> OutboundForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
-            3 -> HistoryList(transactions, txFilter, onFilterChange, viewModel)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            when (activeTabFlow) {
+                0 -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    IncomingForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
+                    Spacer(modifier = Modifier.height(48.dp))
+                }
+                1 -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    TransferForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
+                    Spacer(modifier = Modifier.height(48.dp))
+                }
+                2 -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    OutboundForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
+                    Spacer(modifier = Modifier.height(48.dp))
+                }
+                3 -> HistoryList(transactions, txFilter, onFilterChange, viewModel)
+            }
         }
     }
 }
@@ -3035,7 +3065,9 @@ fun AddWarehouseDialog(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
-                modifier = Modifier.padding(18.dp),
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
@@ -3118,7 +3150,9 @@ fun EditWarehouseDialog(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
-                modifier = Modifier.padding(18.dp),
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
