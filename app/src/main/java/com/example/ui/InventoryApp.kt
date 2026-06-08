@@ -219,7 +219,9 @@ fun InventoryApp(viewModel: InventoryViewModel) {
                         warehouses = warehouses,
                         transactions = transactions,
                         txFilter = txTypeFilter,
-                        onFilterChange = { viewModel.updateTxTypeFilter(it) }
+                        onFilterChange = { viewModel.updateTxTypeFilter(it) },
+                        onAddNewItemClick = { showAddItemDialog = true },
+                        onAddNewWarehouseClick = { showAddWarehouseDialog = true }
                     )
                     3 -> WarehousesScreen(
                         warehouses = warehouses,
@@ -1559,7 +1561,9 @@ fun TransactionsScreen(
     warehouses: List<WarehouseEntity>,
     transactions: List<TransactionEntity>,
     txFilter: String,
-    onFilterChange: (String) -> Unit
+    onFilterChange: (String) -> Unit,
+    onAddNewItemClick: () -> Unit,
+    onAddNewWarehouseClick: () -> Unit
 ) {
     var activeTabFlow by remember { mutableStateOf(0) } // 0: Орлого бүртгэх, 1: Шилжилт хөдөлгөөн, 2: Зарлага бичих, 3: Бүх түүх харах
 
@@ -1587,9 +1591,9 @@ fun TransactionsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         when (activeTabFlow) {
-            0 -> IncomingForm(viewModel, items, warehouses)
-            1 -> TransferForm(viewModel, items, warehouses)
-            2 -> OutboundForm(viewModel, items, warehouses)
+            0 -> IncomingForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
+            1 -> TransferForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
+            2 -> OutboundForm(viewModel, items, warehouses, onAddNewItemClick, onAddNewWarehouseClick)
             3 -> HistoryList(transactions, txFilter, onFilterChange, viewModel)
         }
     }
@@ -1600,11 +1604,13 @@ fun TransactionsScreen(
 fun IncomingForm(
     viewModel: InventoryViewModel,
     items: List<ItemEntity>,
-    warehouses: List<WarehouseEntity>
+    warehouses: List<WarehouseEntity>,
+    onAddNewItemClick: () -> Unit,
+    onAddNewWarehouseClick: () -> Unit
 ) {
-    var selectedItemId by remember { mutableStateOf(0) }
+    var selectedItemId by remember(items) { mutableStateOf(items.firstOrNull()?.id ?: 0) }
     var qtyString by remember { mutableStateOf("") }
-    var selectedWhId by remember { mutableStateOf(0) }
+    var selectedWhId by remember(warehouses) { mutableStateOf(warehouses.firstOrNull()?.id ?: 0) }
     var partner by remember { mutableStateOf("") }
     var remarks by remember { mutableStateOf("") }
     var nurseName by remember { mutableStateOf("") }
@@ -1614,134 +1620,210 @@ fun IncomingForm(
 
     val selectedItem = items.find { it.id == selectedItemId }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    if (items.isEmpty() || warehouses.isEmpty()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+            ),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
         ) {
-            Text("Бараа материал шинээр хүлээн авах (Орлого)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
-            
-            // Бараа сонгох
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = { itemExpanded = true },
-                    modifier = Modifier.fillMaxWidth().testTag("add_incoming_item_select_btn"),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        text = selectedItem?.name ?: "Бараа сонгох (*)",
-                        overflow = TextOverflow.Ellipsis,
-                        maxLines = 1
-                    )
-                }
-                DropdownMenu(
-                    expanded = itemExpanded,
-                    onDismissRequest = { itemExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f)
-                ) {
-                    items.forEach { item ->
-                        DropdownMenuItem(
-                            text = { Text("${item.name} (${item.unit})") },
-                            onClick = {
-                                selectedItemId = item.id
-                                itemExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Агуулах сонгох
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = { whExpanded = true },
-                    modifier = Modifier.fillMaxWidth().testTag("add_incoming_wh_select_btn"),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    val wh = warehouses.find { it.id == selectedWhId }
-                    Text(text = wh?.name ?: "Агуулах / Байршил сонгох (*)")
-                }
-                DropdownMenu(
-                    expanded = whExpanded,
-                    onDismissRequest = { whExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f)
-                ) {
-                    warehouses.forEach { wh ->
-                        DropdownMenuItem(
-                            text = { Text("${wh.name} (${wh.code})") },
-                            onClick = {
-                                selectedWhId = wh.id
-                                whExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Тоо хэмжээ
-            OutlinedTextField(
-                value = qtyString,
-                onValueChange = { qtyString = it },
-                label = { Text("Орлогын тоо хэмжээ (*)") },
-                trailingIcon = { selectedItem?.let { Text(it.unit, modifier = Modifier.padding(end = 12.dp)) } },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth().testTag("incoming_qty_input")
-            )
-
-            // Нийлүүлэгч түнш
-            OutlinedTextField(
-                value = partner,
-                onValueChange = { partner = it },
-                label = { Text("Нийлүүлэгч (Байгууллага/Түнш)") },
-                modifier = Modifier.fillMaxWidth().testTag("incoming_partner_input")
-            )
-
-            // Тэмдэглэл
-            OutlinedTextField(
-                value = remarks,
-                onValueChange = { remarks = it },
-                label = { Text("Тайлбар / Баримтын дугаар") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // БҮРТГЭСЭН НЯРАВ
-            OutlinedTextField(
-                value = nurseName,
-                onValueChange = { nurseName = it },
-                label = { Text("Хүлээн авсан нярав") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Button(
-                onClick = {
-                    val qty = qtyString.toDoubleOrNull() ?: 0.0
-                    viewModel.recordIncoming(
-                        itemId = selectedItemId,
-                        quantity = qty,
-                        warehouseId = selectedWhId,
-                        supplierName = partner,
-                        remarks = remarks,
-                        performedBy = nurseName
-                    )
-                    // Маягтыг цэвэрлэх
-                    qtyString = ""
-                    partner = ""
-                    remarks = ""
-                },
-                modifier = Modifier.fillMaxWidth().testTag("incoming_submit_btn"),
-                shape = RoundedCornerShape(10.dp)
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(imageVector = Icons.Default.Save, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Орлого оруулах")
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(44.dp)
+                )
+                Text(
+                    text = "Орлого бүртгэх боломжгүй байна",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Барааны жагсаалт эсвэл агуулахууд хоосон байна. Түргэн эхлүүлэхийн тулд нэгийг сонгоно уу:",
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onAddNewItemClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.LibraryAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Шинэ бараа бүртгэх", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = onAddNewWarehouseClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Шинэ агуулах бүртгэх", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    OutlinedButton(
+                        onClick = { viewModel.resetToDemoData(context) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Демо өгөгдлийг сэргээж хуулах", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    } else {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Бараа материал шинээр хүлээн авах (Орлого)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                
+                // Бараа сонгох
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { itemExpanded = true },
+                        modifier = Modifier.fillMaxWidth().testTag("add_incoming_item_select_btn"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = selectedItem?.name ?: "Бараа сонгох (*)",
+                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 1
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = itemExpanded,
+                        onDismissRequest = { itemExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        items.forEach { item ->
+                            DropdownMenuItem(
+                                text = { Text("${item.name} (${item.unit})") },
+                                onClick = {
+                                    selectedItemId = item.id
+                                    itemExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Агуулах сонгох
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { whExpanded = true },
+                        modifier = Modifier.fillMaxWidth().testTag("add_incoming_wh_select_btn"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        val wh = warehouses.find { it.id == selectedWhId }
+                        Text(text = wh?.name ?: "Агуулах / Байршил сонгох (*)")
+                    }
+                    DropdownMenu(
+                        expanded = whExpanded,
+                        onDismissRequest = { whExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        warehouses.forEach { wh ->
+                            DropdownMenuItem(
+                                text = { Text("${wh.name} (${wh.code})") },
+                                onClick = {
+                                    selectedWhId = wh.id
+                                    whExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Тоо хэмжээ
+                OutlinedTextField(
+                    value = qtyString,
+                    onValueChange = { qtyString = it },
+                    label = { Text("Орлогын тоо хэмжээ (*)") },
+                    trailingIcon = { selectedItem?.let { Text(it.unit, modifier = Modifier.padding(end = 12.dp)) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth().testTag("incoming_qty_input")
+                )
+
+                // Нийлүүлэгч түнш
+                OutlinedTextField(
+                    value = partner,
+                    onValueChange = { partner = it },
+                    label = { Text("Нийлүүлэгч (Байгууллага/Түнш)") },
+                    modifier = Modifier.fillMaxWidth().testTag("incoming_partner_input")
+                )
+
+                // Тэмдэглэл
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text("Тайлбар / Баримтын дугаар") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // БҮРТГЭСЭН НЯРАВ
+                OutlinedTextField(
+                    value = nurseName,
+                    onValueChange = { nurseName = it },
+                    label = { Text("Хүлээн авсан нярав") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = {
+                        val qty = qtyString.toDoubleOrNull() ?: 0.0
+                        viewModel.recordIncoming(
+                            itemId = selectedItemId,
+                            quantity = qty,
+                            warehouseId = selectedWhId,
+                            supplierName = partner,
+                            remarks = remarks,
+                            performedBy = nurseName
+                        )
+                        // Маягтыг цэвэрлэх
+                        qtyString = ""
+                        partner = ""
+                        remarks = ""
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("incoming_submit_btn"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.Save, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Орлого оруулах")
+                }
             }
         }
     }
@@ -1752,12 +1834,14 @@ fun IncomingForm(
 fun TransferForm(
     viewModel: InventoryViewModel,
     items: List<ItemEntity>,
-    warehouses: List<WarehouseEntity>
+    warehouses: List<WarehouseEntity>,
+    onAddNewItemClick: () -> Unit,
+    onAddNewWarehouseClick: () -> Unit
 ) {
-    var selectedItemId by remember { mutableStateOf(0) }
+    var selectedItemId by remember(items) { mutableStateOf(items.firstOrNull()?.id ?: 0) }
     var qtyString by remember { mutableStateOf("") }
-    var sourceWhId by remember { mutableStateOf(0) }
-    var destWhId by remember { mutableStateOf(0) }
+    var sourceWhId by remember(warehouses) { mutableStateOf(warehouses.firstOrNull()?.id ?: 0) }
+    var destWhId by remember(warehouses) { mutableStateOf(if (warehouses.size > 1) warehouses[1].id else warehouses.firstOrNull()?.id ?: 0) }
     var remarks by remember { mutableStateOf("") }
     var nurseName by remember { mutableStateOf("") }
 
@@ -1767,167 +1851,243 @@ fun TransferForm(
 
     val selectedItem = items.find { it.id == selectedItemId }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    if (items.isEmpty() || warehouses.size < 2) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+            ),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
         ) {
-            Text("Агуулах хооронд шилжилт хөдөлгөөн хийх", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
-            
-            // Бараа сонгох
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = { itemExpanded = true },
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(44.dp)
+                )
+                Text(
+                    text = "Шилжүүлэг бүртгэх боломжгүй байна",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Барааны жагсаалт хоосон эсвэл агуулахын хэмжээ 2-оос бага байна. Агуулах хоорондын шилжүүлэлт хийхийн тулд хамгийн багадаа 2 агуулах бүртгэгдсэн байх шаардлагатай.",
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onAddNewItemClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.LibraryAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Шинэ бараа бүртгэх", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = onAddNewWarehouseClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Шинэ агуулах бүртгэх", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    OutlinedButton(
+                        onClick = { viewModel.resetToDemoData(context) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Демо өгөгдлийг сэргээж хуулах", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    } else {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Агуулах хооронд шилжилт хөдөлгөөн хийх", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                
+                // Бараа сонгох
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { itemExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = selectedItem?.name ?: "Бараа сонгох (*)",
+                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 1
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = itemExpanded,
+                        onDismissRequest = { itemExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        items.forEach { item ->
+                            DropdownMenuItem(
+                                text = { Text("${item.name} (${item.unit})") },
+                                onClick = {
+                                    selectedItemId = item.id
+                                    itemExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Илгээх Агуулах
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(
+                            onClick = { srcWhExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            val wh = warehouses.find { it.id == sourceWhId }
+                            Text(text = wh?.name ?: "Илгээх агуулах (*)", fontSize = 12.sp, overflow = TextOverflow.Ellipsis, maxLines = 1)
+                        }
+                        DropdownMenu(
+                            expanded = srcWhExpanded,
+                            onDismissRequest = { srcWhExpanded = false }
+                        ) {
+                            warehouses.forEach { wh ->
+                                DropdownMenuItem(
+                                    text = { Text(wh.name) },
+                                    onClick = {
+                                        sourceWhId = wh.id
+                                        srcWhExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Хөдөлгөөн заах сум
+                    Box(
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Хүлээн авах Агуулах
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(
+                            onClick = { destWhExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            val wh = warehouses.find { it.id == destWhId }
+                            Text(text = wh?.name ?: "Хүлээн авах (*)", fontSize = 12.sp, overflow = TextOverflow.Ellipsis, maxLines = 1)
+                        }
+                        DropdownMenu(
+                            expanded = destWhExpanded,
+                            onDismissRequest = { destWhExpanded = false }
+                        ) {
+                            warehouses.forEach { wh ->
+                                DropdownMenuItem(
+                                    text = { Text(wh.name) },
+                                    onClick = {
+                                        destWhId = wh.id
+                                        destWhExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Тоо хэмжээ
+                OutlinedTextField(
+                    value = qtyString,
+                    onValueChange = { qtyString = it },
+                    label = { Text("Шилжүүлэх тоо хэмжээ (*)") },
+                    trailingIcon = { selectedItem?.let { Text(it.unit, modifier = Modifier.padding(end = 12.dp)) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Тэмдэглэл
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text("Шилжилтийн тайлбар") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // БҮРТГЭСЭН НЯРАВ
+                OutlinedTextField(
+                    value = nurseName,
+                    onValueChange = { nurseName = it },
+                    label = { Text("Гүйлгээ хийсэн нярав") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = {
+                        val qty = qtyString.toDoubleOrNull() ?: 0.0
+                        viewModel.recordTransfer(
+                            itemId = selectedItemId,
+                            quantity = qty,
+                            fromWarehouseId = sourceWhId,
+                            toWarehouseId = destWhId,
+                            remarks = remarks,
+                            performedBy = nurseName
+                        )
+                        // Маягтыг цэвэрлэх
+                        qtyString = ""
+                        remarks = ""
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text(
-                        text = selectedItem?.name ?: "Бараа сонгох (*)",
-                        overflow = TextOverflow.Ellipsis,
-                        maxLines = 1
-                    )
+                    Icon(imageVector = Icons.Default.CompareArrows, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Шилжүүлэлт бүртгэх")
                 }
-                DropdownMenu(
-                    expanded = itemExpanded,
-                    onDismissRequest = { itemExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f)
-                ) {
-                    items.forEach { item ->
-                        DropdownMenuItem(
-                            text = { Text("${item.name} (${item.unit})") },
-                            onClick = {
-                                selectedItemId = item.id
-                                itemExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Илгээх Агуулах
-                Box(modifier = Modifier.weight(1f)) {
-                    OutlinedButton(
-                        onClick = { srcWhExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        val wh = warehouses.find { it.id == sourceWhId }
-                        Text(text = wh?.name ?: "Илгээх агуулах (*)", fontSize = 12.sp, overflow = TextOverflow.Ellipsis, maxLines = 1)
-                    }
-                    DropdownMenu(
-                        expanded = srcWhExpanded,
-                        onDismissRequest = { srcWhExpanded = false }
-                    ) {
-                        warehouses.forEach { wh ->
-                            DropdownMenuItem(
-                                text = { Text(wh.name) },
-                                onClick = {
-                                    sourceWhId = wh.id
-                                    srcWhExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Хөдөлгөөн заах сум
-                Box(
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                // Хүлээн авах Агуулах
-                Box(modifier = Modifier.weight(1f)) {
-                    OutlinedButton(
-                        onClick = { destWhExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        val wh = warehouses.find { it.id == destWhId }
-                        Text(text = wh?.name ?: "Хүлээн авах (*)", fontSize = 12.sp, overflow = TextOverflow.Ellipsis, maxLines = 1)
-                    }
-                    DropdownMenu(
-                        expanded = destWhExpanded,
-                        onDismissRequest = { destWhExpanded = false }
-                    ) {
-                        warehouses.forEach { wh ->
-                            DropdownMenuItem(
-                                text = { Text(wh.name) },
-                                onClick = {
-                                    destWhId = wh.id
-                                    destWhExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Тоо хэмжээ
-            OutlinedTextField(
-                value = qtyString,
-                onValueChange = { qtyString = it },
-                label = { Text("Шилжүүлэх тоо хэмжээ (*)") },
-                trailingIcon = { selectedItem?.let { Text(it.unit, modifier = Modifier.padding(end = 12.dp)) } },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Тэмдэглэл
-            OutlinedTextField(
-                value = remarks,
-                onValueChange = { remarks = it },
-                label = { Text("Шилжилтийн тайлбар") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // БҮРТГЭСЭН НЯРАВ
-            OutlinedTextField(
-                value = nurseName,
-                onValueChange = { nurseName = it },
-                label = { Text("Гүйлгээ хийсэн нярав") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Button(
-                onClick = {
-                    val qty = qtyString.toDoubleOrNull() ?: 0.0
-                    viewModel.recordTransfer(
-                        itemId = selectedItemId,
-                        quantity = qty,
-                        fromWarehouseId = sourceWhId,
-                        toWarehouseId = destWhId,
-                        remarks = remarks,
-                        performedBy = nurseName
-                    )
-                    // Маягтыг цэвэрлэх
-                    qtyString = ""
-                    remarks = ""
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Icon(imageVector = Icons.Default.CompareArrows, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Шилжүүлэлт бүртгэх")
             }
         }
     }
@@ -1938,11 +2098,13 @@ fun TransferForm(
 fun OutboundForm(
     viewModel: InventoryViewModel,
     items: List<ItemEntity>,
-    warehouses: List<WarehouseEntity>
+    warehouses: List<WarehouseEntity>,
+    onAddNewItemClick: () -> Unit,
+    onAddNewWarehouseClick: () -> Unit
 ) {
-    var selectedItemId by remember { mutableStateOf(0) }
+    var selectedItemId by remember(items) { mutableStateOf(items.firstOrNull()?.id ?: 0) }
     var qtyString by remember { mutableStateOf("") }
-    var sourceWhId by remember { mutableStateOf(0) }
+    var sourceWhId by remember(warehouses) { mutableStateOf(warehouses.firstOrNull()?.id ?: 0) }
     var recipient by remember { mutableStateOf("") }
     var remarks by remember { mutableStateOf("") }
     var nurseName by remember { mutableStateOf("") }
@@ -1952,134 +2114,210 @@ fun OutboundForm(
 
     val selectedItem = items.find { it.id == selectedItemId }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    if (items.isEmpty() || warehouses.isEmpty()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+            ),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
         ) {
-            Text("Бараа материал гаргах (Зарлага)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
-            
-            // Бараа сонгох
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = { itemExpanded = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        text = selectedItem?.name ?: "Бараа сонгох (*)",
-                        overflow = TextOverflow.Ellipsis,
-                        maxLines = 1
-                    )
-                }
-                DropdownMenu(
-                    expanded = itemExpanded,
-                    onDismissRequest = { itemExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f)
-                ) {
-                    items.forEach { item ->
-                        DropdownMenuItem(
-                            text = { Text("${item.name} (${item.unit})") },
-                            onClick = {
-                                selectedItemId = item.id
-                                itemExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Агуулах сонгох (Хаанаас гаргах вэ)
-            Box(modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = { srcWhExpanded = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    val wh = warehouses.find { it.id == sourceWhId }
-                    Text(text = wh?.name ?: "Аль агуулахаас гаргах вэ (*)")
-                }
-                DropdownMenu(
-                    expanded = srcWhExpanded,
-                    onDismissRequest = { srcWhExpanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f)
-                ) {
-                    warehouses.forEach { wh ->
-                        DropdownMenuItem(
-                            text = { Text("${wh.name} (${wh.code})") },
-                            onClick = {
-                                sourceWhId = wh.id
-                                srcWhExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Тоо хэмжээ
-            OutlinedTextField(
-                value = qtyString,
-                onValueChange = { qtyString = it },
-                label = { Text("Зарлагын тоо хэмжээ (*)") },
-                trailingIcon = { selectedItem?.let { Text(it.unit, modifier = Modifier.padding(end = 12.dp)) } },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Хүлээн авагч түнш
-            OutlinedTextField(
-                value = recipient,
-                onValueChange = { recipient = it },
-                label = { Text("Хүлээн авагч (Ажилтан/Хэлтэс/Орон нутаг)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Тэмдэглэл
-            OutlinedTextField(
-                value = remarks,
-                onValueChange = { remarks = it },
-                label = { Text("Зарлагын зориулалт / Тайлбар") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // БҮРТГЭСЭН НЯРАВ
-            OutlinedTextField(
-                value = nurseName,
-                onValueChange = { nurseName = it },
-                label = { Text("Зарлага бичсэн нярав") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Button(
-                onClick = {
-                    val qty = qtyString.toDoubleOrNull() ?: 0.0
-                    viewModel.recordOutbound(
-                        itemId = selectedItemId,
-                        quantity = qty,
-                        fromWarehouseId = sourceWhId,
-                        recipientName = recipient,
-                        remarks = remarks,
-                        performedBy = nurseName
-                    )
-                    // Маягтыг цэвэрлэх
-                    qtyString = ""
-                    recipient = ""
-                    remarks = ""
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp)
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(imageVector = Icons.Default.VerticalAlignBottom, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Зарлага бүртгэх")
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(44.dp)
+                )
+                Text(
+                    text = "Зарлага бүртгэх боломжгүй байна",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Барааны жагсаалт эсвэл агуулахууд хоосон байна. Зарлага бүртгэхийн тулд эхлээд бараа болон агуулах үүсгэсэн байх шаардлагатай.",
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onAddNewItemClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.LibraryAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Шинэ бараа бүртгэх", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = onAddNewWarehouseClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Storefront, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Шинэ агуулах бүртгэх", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    OutlinedButton(
+                        onClick = { viewModel.resetToDemoData(context) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Демо өгөгдлийг сэргээж хуулах", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    } else {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(1.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Бараа материал гаргах (Зарлага)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                
+                // Бараа сонгох
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { itemExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = selectedItem?.name ?: "Бараа сонгох (*)",
+                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 1
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = itemExpanded,
+                        onDismissRequest = { itemExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        items.forEach { item ->
+                            DropdownMenuItem(
+                                text = { Text("${item.name} (${item.unit})") },
+                                onClick = {
+                                    selectedItemId = item.id
+                                    itemExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Агуулах сонгох (Хаанаас гаргах вэ)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { srcWhExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        val wh = warehouses.find { it.id == sourceWhId }
+                        Text(text = wh?.name ?: "Аль агуулахаас гаргах вэ (*)")
+                    }
+                    DropdownMenu(
+                        expanded = srcWhExpanded,
+                        onDismissRequest = { srcWhExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        warehouses.forEach { wh ->
+                            DropdownMenuItem(
+                                text = { Text("${wh.name} (${wh.code})") },
+                                onClick = {
+                                    sourceWhId = wh.id
+                                    srcWhExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Тоо хэмжээ
+                OutlinedTextField(
+                    value = qtyString,
+                    onValueChange = { qtyString = it },
+                    label = { Text("Зарлагын тоо хэмжээ (*)") },
+                    trailingIcon = { selectedItem?.let { Text(it.unit, modifier = Modifier.padding(end = 12.dp)) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Хүлээн авагч түнш
+                OutlinedTextField(
+                    value = recipient,
+                    onValueChange = { recipient = it },
+                    label = { Text("Хүлээн авагч (Ажилтан/Хэлтэс/Орон нутаг)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Тэмдэглэл
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text("Зарлагын зориулалт / Тайлбар") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // БҮРТГЭСЭН НЯРАВ
+                OutlinedTextField(
+                    value = nurseName,
+                    onValueChange = { nurseName = it },
+                    label = { Text("Зарлага бичсэн нярав") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = {
+                        val qty = qtyString.toDoubleOrNull() ?: 0.0
+                        viewModel.recordOutbound(
+                            itemId = selectedItemId,
+                            quantity = qty,
+                            fromWarehouseId = sourceWhId,
+                            recipientName = recipient,
+                            remarks = remarks,
+                            performedBy = nurseName
+                        )
+                        // Маягтыг цэвэрлэх
+                        qtyString = ""
+                        recipient = ""
+                        remarks = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.VerticalAlignBottom, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Зарлага бүртгэх")
+                }
             }
         }
     }
