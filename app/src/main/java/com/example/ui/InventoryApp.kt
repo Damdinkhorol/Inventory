@@ -211,7 +211,8 @@ fun InventoryApp(viewModel: InventoryViewModel) {
                         warehouses = warehouses,
                         onSearchChange = { viewModel.updateSearchQuery(it) },
                         onCategorySelect = { viewModel.updateSelectedCategory(it) },
-                        onAddNewItemClick = { showAddItemDialog = true }
+                        onAddNewItemClick = { showAddItemDialog = true },
+                        onDownloadClick = { viewModel.downloadStockReport(context) }
                     )
                     2 -> TransactionsScreen(
                         viewModel = viewModel,
@@ -695,6 +696,81 @@ fun DashboardScreen(
             items(recentTransactions) { tx ->
                 // Энд барааны нэрийг уншиж харуулах хэрэгтэй байдаг учраас тусад нь зохионо
                 TransactionStreamItem(tx = tx, viewModel = viewModel)
+            }
+        }
+
+        // ТАЙЛАН ТАТАХ / ЭКСПОРТЛОХ ХЭСЭГ
+        item {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("report_export_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudDownload,
+                            contentDescription = "Тайлан татах",
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Тайлан, Өгөгдөл татах (Export)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+
+                    Text(
+                        text = "Барааны одоогийн үлдэгдэлтэй жагсаалт болон хийгдсэн бүх гүйлгээний түүхийг CSV хэлбэрээр татаж авах, Excel файл болгон ашиглах болон хуваалцах боломжтой.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.downloadStockReport(context) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary
+                            ),
+                            modifier = Modifier.weight(1f).testTag("download_inventory_report_btn"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Үлдэгдлийн тайлан татах", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = { viewModel.downloadTransactionsReport(context) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.weight(1f).testTag("download_tx_report_btn"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Гүйлгээний тайлан татах", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
 
@@ -1280,7 +1356,8 @@ fun StocksScreen(
     warehouses: List<WarehouseEntity>,
     onSearchChange: (String) -> Unit,
     onCategorySelect: (String) -> Unit,
-    onAddNewItemClick: () -> Unit
+    onAddNewItemClick: () -> Unit,
+    onDownloadClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1340,12 +1417,30 @@ fun StocksScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Нийт жагсаалт (${items.size} бараа)",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "Нийт жагсаалт (${items.size} бараа)",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                if (items.isNotEmpty()) {
+                    IconButton(
+                        onClick = onDownloadClick,
+                        modifier = Modifier.size(26.dp).testTag("stocks_download_csv_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Үлдэгдлийн тайлан татах",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
             Button(
                 onClick = onAddNewItemClick,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -2529,6 +2624,43 @@ fun HistoryList(
         }
 
         Spacer(modifier = Modifier.height(10.dp))
+
+        val context = androidx.compose.ui.platform.LocalContext.current
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${transactions.size} гүйлгээ олдлоо",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline,
+                fontWeight = FontWeight.Medium
+            )
+            
+            if (transactions.isNotEmpty()) {
+                TextButton(
+                    onClick = { viewModel.downloadTransactionsReport(context) },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Жагсаалтыг татах (CSV)", 
+                        fontSize = 11.sp, 
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (transactions.isEmpty()) {
             Box(

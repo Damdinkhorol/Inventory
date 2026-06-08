@@ -399,6 +399,160 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
     }
 
     /**
+     * Гүйлгээний түүхийг CSV файл болгон татах
+     */
+    fun downloadTransactionsReport(context: Context) {
+        viewModelScope.launch {
+            try {
+                val transactionsList = repository.allTransactions.first()
+                val itemsList = repository.allItems.first()
+                val warehousesList = repository.allWarehouses.first()
+                
+                val resolver = context.contentResolver
+                val filename = "inventory_transactions_${System.currentTimeMillis()}.csv"
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                    }
+                }
+                
+                val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                } else {
+                    val downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    val file = java.io.File(downloadDir, filename)
+                    android.net.Uri.fromFile(file)
+                }
+                
+                if (uri == null) {
+                    _uiMessage.emit(UiMessage.Error("Файл үүсгэхэд алдаа гарлаа."))
+                    return@launch
+                }
+                
+                resolver.openOutputStream(uri)?.use { outputStream ->
+                    val writer = java.io.BufferedWriter(java.io.OutputStreamWriter(outputStream, "UTF-8"))
+                    writer.write("\uFEFF") // Write UTF-8 BOM for Excel compatibility
+                    writer.write("Дугаар,Төрөл,Бараа,Тоо хэмжээ,Хаанаас,Хаашаа,Түнш/Нийлүүлэгч,Тайлбар,Огноо,Нярав\n")
+                    
+                    transactionsList.forEach { tx ->
+                        val item = itemsList.find { it.id == tx.itemId }
+                        val fromWh = warehousesList.find { it.id == tx.fromWarehouseId }
+                        val toWh = warehousesList.find { it.id == tx.toWarehouseId }
+                        val typeName = when (tx.type) {
+                            "INCOMING" -> "Орлого"
+                            "TRANSFER" -> "Шилжилт"
+                            "OUTBOUND" -> "Зарлага"
+                            else -> tx.type
+                        }
+                        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(tx.timestamp))
+                        
+                        val itemName = item?.let { "${it.name} (${it.unit})" } ?: "Устсан бараа"
+                        val fromWhName = fromWh?.name ?: "-"
+                        val toWhName = toWh?.name ?: "-"
+                        
+                        writer.write(
+                            "${tx.id}," +
+                            "${typeName}," +
+                            "\"${itemName.replace("\"", "\"\"")}\"," +
+                            "${tx.quantity}," +
+                            "\"${fromWhName.replace("\"", "\"\"")}\"," +
+                            "\"${toWhName.replace("\"", "\"\"")}\"," +
+                            "\"${tx.partnerName.replace("\"", "\"\"")}\"," +
+                            "\"${tx.remarks.replace("\"", "\"\"")}\"," +
+                            "${dateStr}," +
+                            "\"${tx.performedBy.replace("\"", "\"\"")}\"\n"
+                        )
+                    }
+                    writer.flush()
+                }
+                
+                shareCsvFile(context, uri, filename)
+                _uiMessage.emit(UiMessage.Success("Гүйлгээний тайлан амжилттай татагдлаа! (Downloads/$filename)"))
+            } catch (e: java.lang.Exception) {
+                e.printStackTrace()
+                _uiMessage.emit(UiMessage.Error("Тайлан татахад алдаа гарлаа: ${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * Барааны үлдэгдлийн тайланг CSV файл болгон татах
+     */
+    fun downloadStockReport(context: Context) {
+        viewModelScope.launch {
+            try {
+                val stockList = repository.itemsWithStock.first()
+                val resolver = context.contentResolver
+                val filename = "inventory_stock_${System.currentTimeMillis()}.csv"
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                    }
+                }
+                
+                val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                } else {
+                    val downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                    val file = java.io.File(downloadDir, filename)
+                    android.net.Uri.fromFile(file)
+                }
+                
+                if (uri == null) {
+                    _uiMessage.emit(UiMessage.Error("Файл үүсгэхэд алдаа гарлаа."))
+                    return@launch
+                }
+                
+                resolver.openOutputStream(uri)?.use { outputStream ->
+                    val writer = java.io.BufferedWriter(java.io.OutputStreamWriter(outputStream, "UTF-8"))
+                    writer.write("\uFEFF") // Write UTF-8 BOM for Excel compatibility
+                    writer.write("Баркод,Барааны нэр,Ангилал,Хэмжих нэгж,Доод хязгаар,Нийт үлдэгдэл,Төлөв\n")
+                    
+                    stockList.forEach { stock ->
+                        val item = stock.item
+                        val status = if (stock.totalStock < item.minQuantity) "Дутагдалтай" else "Хэвийн"
+                        
+                        writer.write(
+                            "\"${item.barcode.replace("\"", "\"\"")}\"," +
+                            "\"${item.name.replace("\"", "\"\"")}\"," +
+                            "\"${item.category.replace("\"", "\"\"")}\"," +
+                            "\"${item.unit.replace("\"", "\"\"")}\"," +
+                            "${item.minQuantity}," +
+                            "${stock.totalStock}," +
+                            "\"${status}\"\n"
+                        )
+                    }
+                    writer.flush()
+                }
+                
+                shareCsvFile(context, uri, filename)
+                _uiMessage.emit(UiMessage.Success("Үлдэгдлийн тайлан амжилттай татагдлаа! (Downloads/$filename)"))
+            } catch (e: java.lang.Exception) {
+                e.printStackTrace()
+                _uiMessage.emit(UiMessage.Error("Үлдэгдлийн тайлан татахад алдаа гарлаа: ${e.message}"))
+            }
+        }
+    }
+
+    private fun shareCsvFile(context: Context, uri: android.net.Uri, filename: String) {
+        try {
+            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(android.content.Intent.EXTRA_SUBJECT, filename)
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(android.content.Intent.createChooser(shareIntent, "Тайланг хуваалцах / хадгалах"))
+        } catch (e: java.lang.Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
      * Системийн бүх өгөгдлийг устгах
      */
     fun clearAllData(context: Context) {
