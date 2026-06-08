@@ -1,0 +1,6 @@
+{
+  "name": "StockFlow",
+  "description": "Бодит цаг хугацаанд бараа материалын орлого, шилжилт, зарлагыг хянах систем (Real-time Inventory Tracking System)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
