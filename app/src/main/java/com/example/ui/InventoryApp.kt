@@ -57,6 +57,7 @@ fun InventoryApp(viewModel: InventoryViewModel) {
     val transactions by viewModel.filteredTransactions.collectAsStateWithLifecycle()
     val warehouses by viewModel.warehouses.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
     
     // Хайлт болон Шүүлтүүрийн төлөв
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -134,7 +135,17 @@ fun InventoryApp(viewModel: InventoryViewModel) {
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                 ),
                 actions = {
-                    // Хурдан үйлдэл үүсгэх товчлуурууд
+                    // Theme Switcher Button and Dialog Trigger Button
+                    IconButton(
+                        onClick = { viewModel.toggleTheme() },
+                        modifier = Modifier.testTag("theme_toggle_btn")
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkTheme) Icons.Default.WbSunny else Icons.Default.NightsStay,
+                            contentDescription = "Theme солих",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     IconButton(
                         onClick = { showAddItemDialog = true },
                         modifier = Modifier.testTag("top_add_item_btn")
@@ -272,6 +283,7 @@ fun DashboardScreen(
     warehouses: List<WarehouseEntity>,
     onNavigateToTab: (Int) -> Unit
 ) {
+    val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -838,6 +850,86 @@ fun DashboardScreen(
                             Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Гүйлгээний тайлан татах", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // АППЛИКЕЙШНЫ ХАРАГДАЦ (THEME ТОХИРГОО)
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("theme_settings_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Аппликейшны Харагдац (Theme)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Text(
+                        text = "Системийн өнгө тохиргоог өөрийн хүссэнээр өөрчлөх боломжтой. Цагаан (Гэрэлтэй) болон Харанхуй байдлыг сонгоно уу.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Light Option
+                        Button(
+                            onClick = { viewModel.setTheme(false) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (!isDarkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                contentColor = if (!isDarkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = if (isDarkTheme) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null
+                        ) {
+                            Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Цагаан (Гэрэлтэй)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Dark Option
+                        Button(
+                            onClick = { viewModel.setTheme(true) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                contentColor = if (isDarkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = if (!isDarkTheme) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null
+                        ) {
+                            Icon(Icons.Default.NightsStay, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Харанхуй (Dark)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

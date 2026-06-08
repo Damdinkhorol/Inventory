@@ -29,6 +29,19 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
     private val _uiMessage = MutableSharedFlow<UiMessage>()
     val uiMessage = _uiMessage.asSharedFlow()
 
+    // --- Theme Settings ---
+    // false = White/Light theme, true = Dark Theme
+    private val _isDarkTheme = MutableStateFlow(false)
+    val isDarkTheme = _isDarkTheme.asStateFlow()
+
+    fun toggleTheme() {
+        _isDarkTheme.value = !_isDarkTheme.value
+    }
+
+    fun setTheme(dark: Boolean) {
+        _isDarkTheme.value = dark
+    }
+
     fun initializeDatabase(context: Context) {
         viewModelScope.launch {
             // Демо мэдээллүүд урьдчилан бэлтгэх функцийг ажиллуулна

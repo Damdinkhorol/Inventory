@@ -7,6 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
 import com.example.data.AppDatabase
 import com.example.data.InventoryRepository
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.InventoryApp
 import com.example.ui.InventoryViewModel
 import com.example.ui.InventoryViewModelFactory
@@ -27,7 +29,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         viewModel.initializeDatabase(applicationContext)
         setContent {
-            MyApplicationTheme {
+            val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
+            MyApplicationTheme(darkTheme = isDarkTheme) {
                 InventoryApp(viewModel = viewModel)
             }
         }
