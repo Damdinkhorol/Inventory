@@ -247,7 +247,8 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
         warehouseId: Int,
         supplierName: String,
         remarks: String,
-        performedBy: String
+        performedBy: String,
+        timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
             if (itemId == 0 || quantity <= 0.0 || warehouseId == 0) {
@@ -262,6 +263,7 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
                 fromWarehouseId = null,
                 toWarehouseId = warehouseId,
                 partnerName = supplierName.trim(),
+                timestamp = timestamp,
                 remarks = remarks.trim(),
                 performedBy = performedBy.trim().ifBlank { "Систем" }
             )
@@ -279,7 +281,8 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
         fromWarehouseId: Int,
         toWarehouseId: Int,
         remarks: String,
-        performedBy: String
+        performedBy: String,
+        timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
             if (itemId == 0 || quantity <= 0.0 || fromWarehouseId == 0 || toWarehouseId == 0) {
@@ -309,6 +312,7 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
                 fromWarehouseId = fromWarehouseId,
                 toWarehouseId = toWarehouseId,
                 partnerName = "Агуулах хоорондын шилжилт",
+                timestamp = timestamp,
                 remarks = remarks.trim(),
                 performedBy = performedBy.trim().ifBlank { "Систем" }
             )
@@ -326,7 +330,8 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
         fromWarehouseId: Int,
         recipientName: String,
         remarks: String,
-        performedBy: String
+        performedBy: String,
+        timestamp: Long = System.currentTimeMillis()
     ) {
         viewModelScope.launch {
             if (itemId == 0 || quantity <= 0.0 || fromWarehouseId == 0) {
@@ -351,6 +356,7 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
                 fromWarehouseId = fromWarehouseId,
                 toWarehouseId = null,
                 partnerName = recipientName.trim(),
+                timestamp = timestamp,
                 remarks = remarks.trim(),
                 performedBy = performedBy.trim().ifBlank { "Систем" }
             )

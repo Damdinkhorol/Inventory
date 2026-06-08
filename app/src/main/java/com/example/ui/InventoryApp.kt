@@ -1809,6 +1809,7 @@ fun IncomingForm(
     var partner by remember { mutableStateOf("") }
     var remarks by remember { mutableStateOf("") }
     var nurseName by remember { mutableStateOf("") }
+    var txTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
 
     var itemExpanded by remember { mutableStateOf(false) }
     var whExpanded by remember { mutableStateOf(false) }
@@ -1994,6 +1995,68 @@ fun IncomingForm(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // ОГНОО СОНГОХ ХЭСЭГ
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val calendar = remember { java.util.Calendar.getInstance() }
+                val dateSdf = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()) }
+                
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(
+                        text = "Гүйлгээний огноо сонгох (Анхдагч: Өнөөдөр)",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            val dialog = android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    calendar.set(java.util.Calendar.YEAR, year)
+                                    calendar.set(java.util.Calendar.MONTH, month)
+                                    calendar.set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                                    txTimestamp = calendar.timeInMillis
+                                },
+                                calendar.get(java.util.Calendar.YEAR),
+                                calendar.get(java.util.Calendar.MONTH),
+                                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                            )
+                            dialog.show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = dateSdf.format(java.util.Date(txTimestamp)),
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Өөрчлөх",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Button(
@@ -2005,12 +2068,14 @@ fun IncomingForm(
                             warehouseId = selectedWhId,
                             supplierName = partner,
                             remarks = remarks,
-                            performedBy = nurseName
+                            performedBy = nurseName,
+                            timestamp = txTimestamp
                         )
                         // Маягтыг цэвэрлэх
                         qtyString = ""
                         partner = ""
                         remarks = ""
+                        txTimestamp = System.currentTimeMillis()
                     },
                     modifier = Modifier.fillMaxWidth().testTag("incoming_submit_btn"),
                     shape = RoundedCornerShape(10.dp)
@@ -2039,6 +2104,7 @@ fun TransferForm(
     var destWhId by remember(warehouses) { mutableStateOf(if (warehouses.size > 1) warehouses[1].id else warehouses.firstOrNull()?.id ?: 0) }
     var remarks by remember { mutableStateOf("") }
     var nurseName by remember { mutableStateOf("") }
+    var txTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
 
     var itemExpanded by remember { mutableStateOf(false) }
     var srcWhExpanded by remember { mutableStateOf(false) }
@@ -2259,6 +2325,68 @@ fun TransferForm(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // ОГНОО СОНГОХ ХЭСЭГ
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val calendar = remember { java.util.Calendar.getInstance() }
+                val dateSdf = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()) }
+                
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(
+                        text = "Гүйлгээний огноо сонгох (Анхдагч: Өнөөдөр)",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            val dialog = android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    calendar.set(java.util.Calendar.YEAR, year)
+                                    calendar.set(java.util.Calendar.MONTH, month)
+                                    calendar.set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                                    txTimestamp = calendar.timeInMillis
+                                },
+                                calendar.get(java.util.Calendar.YEAR),
+                                calendar.get(java.util.Calendar.MONTH),
+                                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                            )
+                            dialog.show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = dateSdf.format(java.util.Date(txTimestamp)),
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Өөрчлөх",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Button(
@@ -2270,11 +2398,13 @@ fun TransferForm(
                             fromWarehouseId = sourceWhId,
                             toWarehouseId = destWhId,
                             remarks = remarks,
-                            performedBy = nurseName
+                            performedBy = nurseName,
+                            timestamp = txTimestamp
                         )
                         // Маягтыг цэвэрлэх
                         qtyString = ""
                         remarks = ""
+                        txTimestamp = System.currentTimeMillis()
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
@@ -2303,6 +2433,7 @@ fun OutboundForm(
     var recipient by remember { mutableStateOf("") }
     var remarks by remember { mutableStateOf("") }
     var nurseName by remember { mutableStateOf("") }
+    var txTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
 
     var itemExpanded by remember { mutableStateOf(false) }
     var srcWhExpanded by remember { mutableStateOf(false) }
@@ -2488,6 +2619,68 @@ fun OutboundForm(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // ОГНОО СОНГОХ ХЭСЭГ
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val calendar = remember { java.util.Calendar.getInstance() }
+                val dateSdf = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()) }
+                
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(
+                        text = "Гүйлгээний огноо сонгох (Анхдагч: Өнөөдөр)",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            val dialog = android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    calendar.set(java.util.Calendar.YEAR, year)
+                                    calendar.set(java.util.Calendar.MONTH, month)
+                                    calendar.set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                                    txTimestamp = calendar.timeInMillis
+                                },
+                                calendar.get(java.util.Calendar.YEAR),
+                                calendar.get(java.util.Calendar.MONTH),
+                                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                            )
+                            dialog.show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = dateSdf.format(java.util.Date(txTimestamp)),
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Өөрчлөх",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Button(
@@ -2499,12 +2692,14 @@ fun OutboundForm(
                             fromWarehouseId = sourceWhId,
                             recipientName = recipient,
                             remarks = remarks,
-                            performedBy = nurseName
+                            performedBy = nurseName,
+                            timestamp = txTimestamp
                         )
                         // Маягтыг цэвэрлэх
                         qtyString = ""
                         recipient = ""
                         remarks = ""
+                        txTimestamp = System.currentTimeMillis()
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp)
