@@ -356,11 +356,12 @@ fun DashboardScreen(
             }
         }
 
-        // ОГНООНЫ ШҮҮЛТҮҮРТЭЙ ХЯНАЛТ СЕКЦ
         item {
             val dbYear by viewModel.dbYearFilter.collectAsStateWithLifecycle()
             val dbMonth by viewModel.dbMonthFilter.collectAsStateWithLifecycle()
             val dbDay by viewModel.dbDayFilter.collectAsStateWithLifecycle()
+            val dbItemFilter by viewModel.dbItemFilter.collectAsStateWithLifecycle()
+            val allItems by viewModel.allItems.collectAsStateWithLifecycle()
             val dbTransactions by viewModel.dashboardTransactions.collectAsStateWithLifecycle()
 
             // Calculate metrics for dashboard transactions
@@ -376,6 +377,7 @@ fun DashboardScreen(
             var yearExpanded by remember { mutableStateOf(false) }
             var monthExpanded by remember { mutableStateOf(false) }
             var dayExpanded by remember { mutableStateOf(false) }
+            var itemExpanded by remember { mutableStateOf(false) }
 
             Card(
                 modifier = Modifier
@@ -396,14 +398,14 @@ fun DashboardScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.DateRange,
+                                imageVector = Icons.Default.FilterList,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Огнооны Нарийвчилсан Шүүлтүүр",
+                                text = "Нарийвчилсан Шүүлтүүр (Огноо, Бараа)",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -411,9 +413,12 @@ fun DashboardScreen(
                         }
                         
                         // Clear filter
-                        if (dbYear != null || dbMonth != null || dbDay != null) {
+                        if (dbYear != null || dbMonth != null || dbDay != null || dbItemFilter != null) {
                             IconButton(
-                                onClick = { viewModel.updateDbDateFilters(null, null, null) },
+                                onClick = { 
+                                    viewModel.updateDbDateFilters(null, null, null)
+                                    viewModel.updateDbItemFilter(null)
+                                },
                                 modifier = Modifier.size(30.dp)
                             ) {
                                 Icon(
@@ -421,6 +426,69 @@ fun DashboardScreen(
                                     contentDescription = "Цэвэрлэх",
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Бараагаар шүүх хэсэг
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { itemExpanded = true },
+                            modifier = Modifier.fillMaxWidth().testTag("db_item_filter_dropDown_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val selectedItem = allItems.find { it.id == dbItemFilter }
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        imageVector = Icons.Default.Inventory,
+                                        contentDescription = null,
+                                        tint = if (dbItemFilter == null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = selectedItem?.let { "${it.name} (${it.unit})" } ?: "Бүх Бараа материал",
+                                        fontSize = 12.sp,
+                                        overflow = TextOverflow.Ellipsis,
+                                        maxLines = 1,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (dbItemFilter == null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = itemExpanded,
+                            onDismissRequest = { itemExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Бүх Бараа материал (Шүүлтгүй)", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    viewModel.updateDbItemFilter(null)
+                                    itemExpanded = false
+                                }
+                            )
+                            allItems.forEach { item ->
+                                DropdownMenuItem(
+                                    text = { Text("${item.name} (${item.unit})", fontSize = 12.sp) },
+                                    onClick = {
+                                        viewModel.updateDbItemFilter(item.id)
+                                        itemExpanded = false
+                                    }
                                 )
                             }
                         }
@@ -600,13 +668,15 @@ fun DashboardScreen(
                     
                     // Explanation text
                     Text(
-                        text = if (dbYear == null && dbMonth == null && dbDay == null) {
+                        text = if (dbYear == null && dbMonth == null && dbDay == null && dbItemFilter == null) {
                             "Дүнгийн хамрах хүрээ: Системийн нийт бүх үеийн гүйлгээний түүх."
                         } else {
                             val parts = mutableListOf<String>()
                             if (dbYear != null) parts.add("$dbYear он")
                             if (dbMonth != null) parts.add("$dbMonth-р сар")
                             if (dbDay != null) parts.add("$dbDay-ны өдөр")
+                            val selItem = allItems.find { it.id == dbItemFilter }
+                            if (selItem != null) parts.add("[${selItem.name}]")
                             "Шүүлт бэлэн: ${parts.joinToString(" ")}. Энэ хугацаанд нийт ${dbTransactions.size} гүйлгээ хийгдсэн."
                         },
                         fontSize = 11.sp,

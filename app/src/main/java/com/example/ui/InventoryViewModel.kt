@@ -77,7 +77,7 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
     private val _txDayFilter = MutableStateFlow<Int?>(null)
     val txDayFilter = _txDayFilter.asStateFlow()
 
-    // --- Dashboard Specific Date Filters ---
+    // --- Dashboard Specific Date & Item Filters ---
     private val _dbYearFilter = MutableStateFlow<Int?>(null)
     val dbYearFilter = _dbYearFilter.asStateFlow()
 
@@ -86,6 +86,9 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
 
     private val _dbDayFilter = MutableStateFlow<Int?>(null)
     val dbDayFilter = _dbDayFilter.asStateFlow()
+
+    private val _dbItemFilter = MutableStateFlow<Int?>(null)
+    val dbItemFilter = _dbItemFilter.asStateFlow()
 
     // Гүйлгээний түүх (Төрөл болон огноогоор нь шүүж харуулна)
     val filteredTransactions: StateFlow<List<TransactionEntity>> = combine(
@@ -111,13 +114,14 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
     }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Хяналтын самбарын огноогоор шүүсэн гүйлгээнүүд
+    // Хяналтын самбарын огноо болон бараагаар шүүсэн гүйлгээнүүд
     val dashboardTransactions: StateFlow<List<TransactionEntity>> = combine(
         repository.allTransactions,
         _dbYearFilter,
         _dbMonthFilter,
-        _dbDayFilter
-    ) { txs, year, month, day ->
+        _dbDayFilter,
+        _dbItemFilter
+    ) { txs, year, month, day, itemId ->
         txs.filter { tx ->
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = tx.timestamp }
             val txYear = cal.get(java.util.Calendar.YEAR)
@@ -127,8 +131,9 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
             val matchesYear = year == null || txYear == year
             val matchesMonth = month == null || txMonth == month
             val matchesDay = day == null || txDay == day
+            val matchesItem = itemId == null || tx.itemId == itemId
 
-            matchesYear && matchesMonth && matchesDay
+            matchesYear && matchesMonth && matchesDay && matchesItem
         }
     }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -163,6 +168,10 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
         _dbYearFilter.value = year
         _dbMonthFilter.value = month
         _dbDayFilter.value = day
+    }
+
+    fun updateDbItemFilter(itemId: Int?) {
+        _dbItemFilter.value = itemId
     }
 
     // --- Action Handlers ---
