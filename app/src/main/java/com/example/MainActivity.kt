@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        viewModel.initializeDatabase(applicationContext)
         setContent {
             MyApplicationTheme {
                 InventoryApp(viewModel = viewModel)

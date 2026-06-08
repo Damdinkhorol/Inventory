@@ -1,5 +1,6 @@
 package com.example.data
 
+import android.content.Context
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +107,14 @@ class InventoryRepository(private val dao: InventoryDao) {
         dao.insertTransaction(transaction)
     }
 
+    suspend fun updateTransaction(transaction: TransactionEntity) = withContext(Dispatchers.IO) {
+        dao.updateTransaction(transaction)
+    }
+
+    suspend fun deleteTransaction(transaction: TransactionEntity) = withContext(Dispatchers.IO) {
+        dao.deleteTransaction(transaction)
+    }
+
     suspend fun getWarehouseById(id: Int): WarehouseEntity? = withContext(Dispatchers.IO) {
         dao.getWarehouseById(id)
     }
@@ -121,137 +130,174 @@ class InventoryRepository(private val dao: InventoryDao) {
     /**
      * Анхны демо өгөгдлийг бэлтгэж хадгалах
      */
-    suspend fun prepopulateIfEmpty() = withContext(Dispatchers.IO) {
-        // Уг функцийг өгөгдлийн сан хоосон бол ажиллуулна
-        val currentWarehouses = dao.getAllWarehouses()
-        // Бусад зүйлийн урсгал авахгүйгээр шалгахын тулд корутин дотор үйлдэл хийнэ
-        val isWhEmpty = dao.insertWarehouse(WarehouseEntity(name = "Түр шалгах", code = "CHECK")).also {
-            dao.deleteWarehouse(WarehouseEntity(id = it.toInt(), name = "Түр шалгах", code = "CHECK"))
-        } <= 0
+    suspend fun prepopulateIfEmpty(context: Context) = withContext(Dispatchers.IO) {
+        val prefs = context.getSharedPreferences("stockflow_prefs", Context.MODE_PRIVATE)
+        
+        // One-time auto-wipe requested by user on first launch of this update
+        if (!prefs.getBoolean("first_wipe_done_v2", false)) {
+            dao.clearAllTransactions()
+            dao.clearAllItems()
+            dao.clearAllWarehouses()
+            prefs.edit()
+                .putBoolean("first_wipe_done_v2", true)
+                .putBoolean("database_cleared", true)
+                .apply()
+            return@withContext
+        }
+
+        if (prefs.getBoolean("database_cleared", false)) {
+            // User explicitly cleared the database, do not automatically prepopulate
+            return@withContext
+        }
         
         // Манай хэрэглэгчийн агуулахуудыг шалгая:
         // Үнэхээр хоосон байгаа бол бэлтгэнэ:
         val existingItems = dao.getItemById(1)
         if (existingItems == null) {
-            // 1. Агуулахууд бүртгэх
-            val whMainId = dao.insertWarehouse(WarehouseEntity(name = "Төв Агуулах", code = "TA-01", manager = "Б.Эрдэнэ"))
-            val whSubAId = dao.insertWarehouse(WarehouseEntity(name = "Баруун Салбар", code = "BS-02", manager = "О.Баттулга"))
-            val whConstructionId = dao.insertWarehouse(WarehouseEntity(name = "Барилгын Талбай Б", code = "BT-03", manager = "Г.Ананд"))
-
-            // 2. Бараа материал бүртгэх
-            val item1Id = dao.insertItem(ItemEntity(
-                barcode = "4860012345671",
-                name = "Цемент Портланд БЦ-400",
-                category = "Барилга",
-                unit = "Тонн",
-                description = "Сайн чанарын барилгын цемент",
-                minQuantity = 10.0
-            ))
-            val item2Id = dao.insertItem(ItemEntity(
-                barcode = "4860012345672",
-                name = "Арматур төмөр Ф12",
-                category = "Барилга",
-                unit = "Тонн",
-                description = "Орос арматур, 12мм голчтой",
-                minQuantity = 5.0
-            ))
-            val item3Id = dao.insertItem(ItemEntity(
-                barcode = "4860012345673",
-                name = "Кабель утас 3х2.5мм",
-                category = "Цахилгаан",
-                unit = "Метр",
-                description = "Дотор кабель утас, зэс",
-                minQuantity = 200.0
-            ))
-            val item4Id = dao.insertItem(ItemEntity(
-                barcode = "4860012345674",
-                name = "Хамгаалалтын Дуулга (Улаан)",
-                category = "ХАБЭА",
-                unit = "Ширхэг",
-                description = "Хөдөлмөр хамгааллын стандартын дуулга",
-                minQuantity = 15.0
-            ))
-
-            // 3. Анхны хөдөлгөөн оруулах (Орлого, Зарлага, Шилжилт)
-            val now = System.currentTimeMillis()
-            
-            // Орлого: Цемент Төв Агуулахад 50 тонн авсан
-            dao.insertTransaction(TransactionEntity(
-                type = "INCOMING",
-                itemId = item1Id.toInt(),
-                quantity = 50.0,
-                fromWarehouseId = null,
-                toWarehouseId = whMainId.toInt(),
-                partnerName = "Хөтөл Цемент ХК",
-                timestamp = now - 3600000 * 12, // 12 цагийн өмнө
-                remarks = "Эхний үлдэгдлийн хүлээн авалт",
-                performedBy = "Б.Эрдэнэ"
-            ))
-
-            // Орлого: Арматур Төв Агуулахад 30 тонн авсан
-            dao.insertTransaction(TransactionEntity(
-                type = "INCOMING",
-                itemId = item2Id.toInt(),
-                quantity = 30.0,
-                fromWarehouseId = null,
-                toWarehouseId = whMainId.toInt(),
-                partnerName = "Эрдэнэт Гариг ХХК",
-                timestamp = now - 3600000 * 10,
-                remarks = "Төслийн нөөц бүрдүүлэлт",
-                performedBy = "Б.Эрдэнэ"
-            ))
-
-            // Орлого: Дуулга Төв Агуулахад 40 ширхэг авсан
-            dao.insertTransaction(TransactionEntity(
-                type = "INCOMING",
-                itemId = item4Id.toInt(),
-                quantity = 40.0,
-                fromWarehouseId = null,
-                toWarehouseId = whMainId.toInt(),
-                partnerName = "Номин Стор",
-                timestamp = now - 3600000 * 8,
-                remarks = "ХАБЭА ажилчдын хэрэгсэл",
-                performedBy = "Б.Эрдэнэ"
-            ))
-
-            // Шилжилт: Цемент Төв Агуулахаас Барилгын талбай Б рүү 15 тонн шилжүүлэв
-            dao.insertTransaction(TransactionEntity(
-                type = "TRANSFER",
-                itemId = item1Id.toInt(),
-                quantity = 15.0,
-                fromWarehouseId = whMainId.toInt(),
-                toWarehouseId = whConstructionId.toInt(),
-                partnerName = "Барилгын талбайн шилжилт",
-                timestamp = now - 3600000 * 5,
-                remarks = "Суурийн цутгалтанд хэрэглэхээр шилжүүлэв",
-                performedBy = "Б.Эрдэнэ"
-            ))
-
-            // Зарлага: Дуулга Барилгын Ажилчдад 12ш гаргасан
-            dao.insertTransaction(TransactionEntity(
-                type = "OUTBOUND",
-                itemId = item4Id.toInt(),
-                quantity = 12.0,
-                fromWarehouseId = whMainId.toInt(),
-                toWarehouseId = null,
-                partnerName = "Барилга Угсралтын Хэлтэс",
-                timestamp = now - 3600000 * 3,
-                remarks = "Дотоодын хэрэглээ, шинэ туслах ажилчдад олгосон",
-                performedBy = "Б.Эрдэнэ"
-            ))
-
-            // Орлого: Кабель Баруун Салбарт 500 метр авсан
-            dao.insertTransaction(TransactionEntity(
-                type = "INCOMING",
-                itemId = item3Id.toInt(),
-                quantity = 500.0,
-                fromWarehouseId = null,
-                toWarehouseId = whSubAId.toInt(),
-                partnerName = "Нарлаг Сууц ХХК",
-                timestamp = now - 3600000 * 1,
-                remarks = "Цахилгааны ажлын эд анги",
-                performedBy = "О.Баттулга"
-            ))
+            prepopulateReal()
         }
+    }
+
+    suspend fun clearAllDatabase(context: Context) = withContext(Dispatchers.IO) {
+        dao.clearAllTransactions()
+        dao.clearAllItems()
+        dao.clearAllWarehouses()
+        
+        // Save flag to prevent automatic prepopulation next time the app opens
+        val prefs = context.getSharedPreferences("stockflow_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("database_cleared", true).apply()
+    }
+
+    suspend fun forcePrepopulate(context: Context) = withContext(Dispatchers.IO) {
+        val prefs = context.getSharedPreferences("stockflow_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("database_cleared", false).apply()
+        
+        dao.clearAllTransactions()
+        dao.clearAllItems()
+        dao.clearAllWarehouses()
+        
+        prepopulateReal()
+    }
+
+    private suspend fun prepopulateReal() {
+        // 1. Агуулахууд бүртгэх
+        val whMainId = dao.insertWarehouse(WarehouseEntity(name = "Төв Агуулах", code = "TA-01", manager = "Б.Эрдэнэ"))
+        val whSubAId = dao.insertWarehouse(WarehouseEntity(name = "Баруун Салбар", code = "BS-02", manager = "О.Баттулга"))
+        val whConstructionId = dao.insertWarehouse(WarehouseEntity(name = "Барилгын Талбай Б", code = "BT-03", manager = "Г.Ананд"))
+
+        // 2. Бараа материал бүртгэх
+        val item1Id = dao.insertItem(ItemEntity(
+            barcode = "4860012345671",
+            name = "Цемент Портланд БЦ-400",
+            category = "Барилга",
+            unit = "Тонн",
+            description = "Сайн чанарын барилгын цемент",
+            minQuantity = 10.0
+        ))
+        val item2Id = dao.insertItem(ItemEntity(
+            barcode = "4860012345672",
+            name = "Арматур төмөр Ф12",
+            category = "Барилга",
+            unit = "Тонн",
+            description = "Орос арматур, 12мм голчтой",
+            minQuantity = 5.0
+        ))
+        val item3Id = dao.insertItem(ItemEntity(
+            barcode = "4860012345673",
+            name = "Кабель утас 3х2.5мм",
+            category = "Цахилгаан",
+            unit = "Метр",
+            description = "Дотор кабель утас, зэс",
+            minQuantity = 200.0
+        ))
+        val item4Id = dao.insertItem(ItemEntity(
+            barcode = "4860012345674",
+            name = "Хамгаалалтын Дуулга (Улаан)",
+            category = "ХАБЭА",
+            unit = "Ширхэг",
+            description = "Хөдөлмөр хамгааллын стандартын дуулга",
+            minQuantity = 15.0
+        ))
+
+        // 3. Анхны хөдөлгөөн оруулах (Орлого, Зарлага, Шилжилт)
+        val now = System.currentTimeMillis()
+        
+        // Орлого: Цемент Төв Агуулахад 50 тонн авсан
+        dao.insertTransaction(TransactionEntity(
+            type = "INCOMING",
+            itemId = item1Id.toInt(),
+            quantity = 50.0,
+            fromWarehouseId = null,
+            toWarehouseId = whMainId.toInt(),
+            partnerName = "Хөтөл Цемент ХК",
+            timestamp = now - 3600000 * 12, // 12 цагийн өмнө
+            remarks = "Эхний үлдэгдлийн хүлээн авалт",
+            performedBy = "Б.Эрдэнэ"
+        ))
+
+        // Орлого: Арматур Төв Агуулахад 30 тонн авсан
+        dao.insertTransaction(TransactionEntity(
+            type = "INCOMING",
+            itemId = item2Id.toInt(),
+            quantity = 30.0,
+            fromWarehouseId = null,
+            toWarehouseId = whMainId.toInt(),
+            partnerName = "Эрдэнэт Гариг ХХК",
+            timestamp = now - 3600000 * 10,
+            remarks = "Төслийн нөөц бүрдүүлэлт",
+            performedBy = "Б.Эрдэнэ"
+        ))
+
+        // Орлого: Дуулга Төв Агуулахад 40 ширхэг авсан
+        dao.insertTransaction(TransactionEntity(
+            type = "INCOMING",
+            itemId = item4Id.toInt(),
+            quantity = 40.0,
+            fromWarehouseId = null,
+            toWarehouseId = whMainId.toInt(),
+            partnerName = "Номин Стор",
+            timestamp = now - 3600000 * 8,
+            remarks = "ХАБЭА ажилчдын хэрэгсэл",
+            performedBy = "Б.Эрдэнэ"
+        ))
+
+        // Шилжилт: Цемент Төв Агуулахаас Барилгын талбай Б рүү 15 тонн шилжүүлэв
+        dao.insertTransaction(TransactionEntity(
+            type = "TRANSFER",
+            itemId = item1Id.toInt(),
+            quantity = 15.0,
+            fromWarehouseId = whMainId.toInt(),
+            toWarehouseId = whConstructionId.toInt(),
+            partnerName = "Барилгын талбайн шилжилт",
+            timestamp = now - 3600000 * 5,
+            remarks = "Суурийн цутгалтанд хэрэглэхээр шилжүүлэв",
+            performedBy = "Б.Эрдэнэ"
+        ))
+
+        // Зарлага: Дуулга Барилгын Ажилчдад 12ш гаргасан
+        dao.insertTransaction(TransactionEntity(
+            type = "OUTBOUND",
+            itemId = item4Id.toInt(),
+            quantity = 12.0,
+            fromWarehouseId = whMainId.toInt(),
+            toWarehouseId = null,
+            partnerName = "Барилга Угсралтын Хэлтэс",
+            timestamp = now - 3600000 * 3,
+            remarks = "Дотоодын хэрэглээ, шинэ туслах ажилчдад олгосон",
+            performedBy = "Б.Эрдэнэ"
+        ))
+
+        // Орлого: Кабель Баруун Салбарт 500 метр авсан
+        dao.insertTransaction(TransactionEntity(
+            type = "INCOMING",
+            itemId = item3Id.toInt(),
+            quantity = 500.0,
+            fromWarehouseId = null,
+            toWarehouseId = whSubAId.toInt(),
+            partnerName = "Нарлаг Сууц ХХК",
+            timestamp = now - 3600000 * 1,
+            remarks = "Цахилгааны ажлын эд анги",
+            performedBy = "О.Баттулга"
+        ))
     }
 }

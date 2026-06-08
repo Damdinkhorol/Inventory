@@ -53,6 +53,19 @@ interface InventoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity): Long
 
+    @Update
+    suspend fun updateTransaction(transaction: TransactionEntity)
+
     @Delete
     suspend fun deleteTransaction(transaction: TransactionEntity)
+
+    // --- CLEAR / RESET DATABASE ---
+    @Query("DELETE FROM items")
+    suspend fun clearAllItems()
+
+    @Query("DELETE FROM warehouses")
+    suspend fun clearAllWarehouses()
+
+    @Query("DELETE FROM transactions")
+    suspend fun clearAllTransactions()
 }

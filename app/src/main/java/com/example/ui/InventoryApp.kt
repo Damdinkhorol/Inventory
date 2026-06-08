@@ -224,7 +224,8 @@ fun InventoryApp(viewModel: InventoryViewModel) {
                     3 -> WarehousesScreen(
                         warehouses = warehouses,
                         itemsWithStock = itemsWithStock,
-                        onAddWarehouseClick = { showAddWarehouseDialog = true }
+                        onAddWarehouseClick = { showAddWarehouseDialog = true },
+                        viewModel = viewModel
                     )
                 }
             }
@@ -352,9 +353,271 @@ fun DashboardScreen(
             }
         }
 
+        // ОГНООНЫ ШҮҮЛТҮҮРТЭЙ ХЯНАЛТ СЕКЦ
+        item {
+            val dbYear by viewModel.dbYearFilter.collectAsStateWithLifecycle()
+            val dbMonth by viewModel.dbMonthFilter.collectAsStateWithLifecycle()
+            val dbDay by viewModel.dbDayFilter.collectAsStateWithLifecycle()
+            val dbTransactions by viewModel.dashboardTransactions.collectAsStateWithLifecycle()
+
+            // Calculate metrics for dashboard transactions
+            val incomingList = dbTransactions.filter { it.type == "INCOMING" }
+            val outboundList = dbTransactions.filter { it.type == "OUTBOUND" }
+            val transferList = dbTransactions.filter { it.type == "TRANSFER" }
+
+            val totalIncomingQty = incomingList.sumOf { it.quantity }
+            val totalOutboundQty = outboundList.sumOf { it.quantity }
+            val totalTransferQty = transferList.sumOf { it.quantity }
+            val netBalance = totalIncomingQty - totalOutboundQty
+
+            var yearExpanded by remember { mutableStateOf(false) }
+            var monthExpanded by remember { mutableStateOf(false) }
+            var dayExpanded by remember { mutableStateOf(false) }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("dashboard_date_filter_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Огнооны Нарийвчилсан Шүүлтүүр",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        // Clear filter
+                        if (dbYear != null || dbMonth != null || dbDay != null) {
+                            IconButton(
+                                onClick = { viewModel.updateDbDateFilters(null, null, null) },
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterAltOff,
+                                    contentDescription = "Цэвэрлэх",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Dropdowns for Year, Month, Day in a single Row!
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Жил сонгох
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { yearExpanded = true },
+                                modifier = Modifier.fillMaxWidth().testTag("db_year_btn"),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = if (dbYear == null) "Бүх Жил" else "$dbYear он",
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = yearExpanded,
+                                onDismissRequest = { yearExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Бүх жил", fontSize = 12.sp) },
+                                    onClick = {
+                                        viewModel.updateDbDateFilters(null, dbMonth, dbDay)
+                                        yearExpanded = false
+                                    }
+                                )
+                                listOf(2024, 2025, 2026, 2027).forEach { yr ->
+                                    DropdownMenuItem(
+                                        text = { Text("$yr он", fontSize = 12.sp) },
+                                        onClick = {
+                                            viewModel.updateDbDateFilters(yr, dbMonth, dbDay)
+                                            yearExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Сар сонгох
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { monthExpanded = true },
+                                modifier = Modifier.fillMaxWidth().testTag("db_month_btn"),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = if (dbMonth == null) "Бүх Сар" else "$dbMonth-р сар",
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = monthExpanded,
+                                onDismissRequest = { monthExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Бүх сар", fontSize = 12.sp) },
+                                    onClick = {
+                                        viewModel.updateDbDateFilters(dbYear, null, dbDay)
+                                        monthExpanded = false
+                                    }
+                                )
+                                (1..12).forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text("$m-р сар", fontSize = 12.sp) },
+                                        onClick = {
+                                            viewModel.updateDbDateFilters(dbYear, m, dbDay)
+                                            monthExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Өдөр сонгох
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { dayExpanded = true },
+                                modifier = Modifier.fillMaxWidth().testTag("db_day_btn"),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = if (dbDay == null) "Бүх Өдөр" else "$dbDay-ны өдөр",
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = dayExpanded,
+                                onDismissRequest = { dayExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Бүх өдөр", fontSize = 12.sp) },
+                                    onClick = {
+                                        viewModel.updateDbDateFilters(dbYear, dbMonth, null)
+                                        dayExpanded = false
+                                    }
+                                )
+                                (1..31).forEach { d ->
+                                    DropdownMenuItem(
+                                        text = { Text("$d-ны өдөр", fontSize = 12.sp) },
+                                        onClick = {
+                                            viewModel.updateDbDateFilters(dbYear, dbMonth, d)
+                                            dayExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Dynamic Metrics Cards
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            DashboardSummaryMetric(
+                                modifier = Modifier.weight(1f).testTag("db_incoming_metric"),
+                                title = "📥 Орлого хүлээн авалт",
+                                value = String.format("%.1f", totalIncomingQty),
+                                countStr = "${incomingList.size} удаагийн бүртгэл",
+                                iconColor = Color(0xFF2E7D32),
+                                bgColor = Color(0xFFE8F5E9)
+                            )
+
+                            DashboardSummaryMetric(
+                                modifier = Modifier.weight(1f).testTag("db_outbound_metric"),
+                                title = "📤 Зарлага гаргалт",
+                                value = String.format("%.1f", totalOutboundQty),
+                                countStr = "${outboundList.size} удаагийн бүртгэл",
+                                iconColor = Color(0xFFC62828),
+                                bgColor = Color(0xFFFFEBEE)
+                            )
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            DashboardSummaryMetric(
+                                modifier = Modifier.weight(1f).testTag("db_transfer_metric"),
+                                title = "🔄 Дотоод шилжилт",
+                                value = String.format("%.1f", totalTransferQty),
+                                countStr = "${transferList.size} удаагийн бүртгэл",
+                                iconColor = Color(0xFFEF6C00),
+                                bgColor = Color(0xFFFFF3E0)
+                            )
+
+                            DashboardSummaryMetric(
+                                modifier = Modifier.weight(1f).testTag("db_balance_metric"),
+                                title = "📊 Цэвэр Үлдэгдэл",
+                                value = String.format("%.1f", netBalance),
+                                countStr = "Орлого - Зарлага",
+                                iconColor = if (netBalance >= 0) Color(0xFF1565C0) else Color(0xFFC62828),
+                                bgColor = if (netBalance >= 0) Color(0xFFE3F2FD) else Color(0xFFFFEBEE)
+                            )
+                        }
+                    }
+                    
+                    // Explanation text
+                    Text(
+                        text = if (dbYear == null && dbMonth == null && dbDay == null) {
+                            "Дүнгийн хамрах хүрээ: Системийн нийт бүх үеийн гүйлгээний түүх."
+                        } else {
+                            val parts = mutableListOf<String>()
+                            if (dbYear != null) parts.add("$dbYear он")
+                            if (dbMonth != null) parts.add("$dbMonth-р сар")
+                            if (dbDay != null) parts.add("$dbDay-ны өдөр")
+                            "Шүүлт бэлэн: ${parts.joinToString(" ")}. Энэ хугацаанд нийт ${dbTransactions.size} гүйлгээ хийгдсэн."
+                        },
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
         // Агуулах ачааллын тойм (График дүрслэл)
         item {
-            WarehouseLoadChartCard(warehouses = warehouses, recentTransactions = recentTransactions)
+            val dbTransactions by viewModel.dashboardTransactions.collectAsStateWithLifecycle()
+            WarehouseLoadChartCard(warehouses = warehouses, recentTransactions = dbTransactions)
         }
 
         // ДУТАГДЛЫН АНХААРУУЛГА (Бодит цагт ажиллах чухал хэсэг)
@@ -431,6 +694,176 @@ fun DashboardScreen(
                 // Энд барааны нэрийг уншиж харуулах хэрэгтэй байдаг учраас тусад нь зохионо
                 TransactionStreamItem(tx = tx, viewModel = viewModel)
             }
+        }
+
+        // ӨГӨГДЛИЙН МЕНЕЖМЕНТ
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var showClearConfirm by remember { mutableStateOf(false) }
+            var showResetConfirm by remember { mutableStateOf(false) }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("data_management_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Системийн Өгөгдлийн Менежмент",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Text(
+                        text = "Прототип хийж туршихад хялбар болгох үүднээс доорх тохиргоог ашиглана уу. Системийг бүрэн цэвэрлэж өөрийн бараа материал, агуулахыг шинээр оруулах боломжтой.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { showClearConfirm = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            ),
+                            modifier = Modifier.weight(1f).testTag("clear_all_data_btn"),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Бүх датаг устгах", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showResetConfirm = true },
+                            modifier = Modifier.weight(1f).testTag("reset_demo_data_btn"),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Демо дата сэргээх", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            if (showClearConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showClearConfirm = false },
+                    title = { Text("Итгэлтэй байна уу?") },
+                    text = { Text("Системд бүртгэлтэй байгаа бүх бараа, агуулах, гүйлгээний түүхийг бүрэн устгаж цэвэрлэхдээ итгэлтэй байна уу? Энэхүү үйлдлийг буцаах боломжгүй.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.clearAllData(context)
+                                showClearConfirm = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Тийм, бүгдийг устга")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showClearConfirm = false }) {
+                            Text("Болих")
+                        }
+                    }
+                )
+            }
+
+            if (showResetConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showResetConfirm = false },
+                    title = { Text("Демо өгөгдөл хуулах") },
+                    text = { Text("Системийг устган анхны демо өгөгдлөөр (Төв Агуулах, Барилгын материал зэрэг демо өгөгдөл) дүүргэхдээ итгэлтэй байна уу? Таны оруулсан бүх өөрчлөлт устах болно.") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.resetToDemoData(context)
+                                showResetConfirm = false
+                            }
+                        ) {
+                            Text("Тийм, демо хуул")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetConfirm = false }) {
+                            Text("Болих")
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardSummaryMetric(
+    modifier: Modifier = Modifier,
+    title: String,
+    value: String,
+    countStr: String,
+    iconColor: Color,
+    bgColor: Color
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = bgColor.copy(alpha = 0.85f)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = iconColor.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = value,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+                color = iconColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = countStr,
+                fontSize = 10.sp,
+                color = Color.DarkGray,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -767,6 +1200,66 @@ fun TransactionStreamItem(tx: TransactionEntity, viewModel: InventoryViewModel) 
                     text = formattedTime,
                     fontSize = 9.sp,
                     color = Color.LightGray
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            
+            var menuExpanded by remember { mutableStateOf(false) }
+            var showEditDialog by remember { mutableStateOf(false) }
+            var showDeleteDialog by remember { mutableStateOf(false) }
+            
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Сонголт",
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        text = { Text("Засах", fontSize = 13.sp) },
+                        onClick = {
+                            showEditDialog = true
+                            menuExpanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp)) },
+                        text = { Text("Устгах", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) },
+                        onClick = {
+                            showDeleteDialog = true
+                            menuExpanded = false
+                        }
+                    )
+                }
+            }
+
+            if (showEditDialog) {
+                EditTransactionDialog(
+                    transaction = tx,
+                    allItems = items,
+                    warehouses = warehouses,
+                    onDismiss = { showEditDialog = false },
+                    onConfirm = { updatedTx ->
+                        viewModel.updateTransaction(updatedTx)
+                        showEditDialog = false
+                    }
+                )
+            }
+
+            if (showDeleteDialog) {
+                DeleteTransactionConfirmDialog(
+                    transaction = tx,
+                    onDismiss = { showDeleteDialog = false },
+                    onConfirm = {
+                        viewModel.deleteTransaction(tx)
+                        showDeleteDialog = false
+                    }
                 )
             }
         }
@@ -1600,6 +2093,10 @@ fun HistoryList(
     onFilterChange: (String) -> Unit,
     viewModel: InventoryViewModel
 ) {
+    val selectedYear by viewModel.txYearFilter.collectAsStateWithLifecycle()
+    val selectedMonth by viewModel.txMonthFilter.collectAsStateWithLifecycle()
+    val selectedDay by viewModel.txDayFilter.collectAsStateWithLifecycle()
+
     Column {
         // Шүүх хэсэг
         Row(
@@ -1614,6 +2111,182 @@ fun HistoryList(
                     label = { Text(label, fontSize = 11.sp) },
                     modifier = Modifier.weight(1f).testTag("tx_filter_$valType")
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        var showDateFilters by remember { mutableStateOf(false) }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.DateRange,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Огнооны шүүлтүүр",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            TextButton(
+                onClick = { showDateFilters = !showDateFilters },
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (showDateFilters) "Нуух" else "Огноогоор шүүх", fontSize = 12.sp)
+                    Icon(
+                        imageVector = if (showDateFilters) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+        
+        AnimatedVisibility(visible = showDateFilters) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Жил
+                        var yearExpanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { yearExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (selectedYear == null) "Бүх жил" else "${selectedYear} он", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            DropdownMenu(
+                                expanded = yearExpanded,
+                                onDismissRequest = { yearExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Бүх жил", fontSize = 12.sp) },
+                                    onClick = {
+                                        viewModel.updateDateFilters(null, selectedMonth, selectedDay)
+                                        yearExpanded = false
+                                    }
+                                )
+                                listOf(2024, 2025, 2026, 2027).forEach { yr ->
+                                    DropdownMenuItem(
+                                        text = { Text("$yr он", fontSize = 12.sp) },
+                                        onClick = {
+                                            viewModel.updateDateFilters(yr, selectedMonth, selectedDay)
+                                            yearExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Сар
+                        var monthExpanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { monthExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (selectedMonth == null) "Бүх сар" else "${selectedMonth}-р сар", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            DropdownMenu(
+                                expanded = monthExpanded,
+                                onDismissRequest = { monthExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Бүх сар", fontSize = 12.sp) },
+                                    onClick = {
+                                        viewModel.updateDateFilters(selectedYear, null, selectedDay)
+                                        monthExpanded = false
+                                    }
+                                )
+                                (1..12).forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text("$m-р сар", fontSize = 12.sp) },
+                                        onClick = {
+                                            viewModel.updateDateFilters(selectedYear, m, selectedDay)
+                                            monthExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Өдөр
+                        var dayExpanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { dayExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (selectedDay == null) "Бүх өдөр" else "${selectedDay}-ны өдөр", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            DropdownMenu(
+                                expanded = dayExpanded,
+                                onDismissRequest = { dayExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Бүх өдөр", fontSize = 12.sp) },
+                                    onClick = {
+                                        viewModel.updateDateFilters(selectedYear, selectedMonth, null)
+                                        dayExpanded = false
+                                    }
+                                )
+                                (1..31).forEach { d ->
+                                    DropdownMenuItem(
+                                        text = { Text("$d-ны өдөр", fontSize = 12.sp) },
+                                        onClick = {
+                                            viewModel.updateDateFilters(selectedYear, selectedMonth, d)
+                                            dayExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Шүүлтүүр устгах товч
+                    if (selectedYear != null || selectedMonth != null || selectedDay != null) {
+                        Button(
+                            onClick = { viewModel.updateDateFilters(null, null, null) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                            modifier = Modifier.align(Alignment.End).height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Шүүлтүүр арилгах", fontSize = 10.sp)
+                        }
+                    }
+                }
             }
         }
 
@@ -1646,8 +2319,12 @@ fun HistoryList(
 fun WarehousesScreen(
     warehouses: List<WarehouseEntity>,
     itemsWithStock: List<ItemWithStock>,
-    onAddWarehouseClick: () -> Unit
+    onAddWarehouseClick: () -> Unit,
+    viewModel: InventoryViewModel
 ) {
+    var warehouseToEdit by remember { mutableStateOf<WarehouseEntity?>(null) }
+    var warehouseToDelete by remember { mutableStateOf<WarehouseEntity?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1733,6 +2410,30 @@ fun WarehousesScreen(
                                         color = Color.Gray
                                     )
                                 }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { warehouseToEdit = wh },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Засах",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { warehouseToDelete = wh },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Устгах",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                             }
                             
                             Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -1764,6 +2465,33 @@ fun WarehousesScreen(
                 }
             }
         }
+    }
+
+    if (warehouseToEdit != null) {
+        EditWarehouseDialog(
+            warehouse = warehouseToEdit!!,
+            onDismiss = { warehouseToEdit = null },
+            onConfirm = { name, code, manager ->
+                val updatedWh = warehouseToEdit!!.copy(
+                    name = name.trim(),
+                    code = code.trim().uppercase(),
+                    manager = manager.trim()
+                )
+                viewModel.updateWarehouse(updatedWh)
+                warehouseToEdit = null
+            }
+        )
+    }
+
+    if (warehouseToDelete != null) {
+        DeleteWarehouseConfirmDialog(
+            warehouse = warehouseToDelete!!,
+            onDismiss = { warehouseToDelete = null },
+            onConfirm = {
+                viewModel.deleteWarehouse(warehouseToDelete!!)
+                warehouseToDelete = null
+            }
+        )
     }
 }
 
@@ -1998,4 +2726,361 @@ fun AddWarehouseDialog(
 @Composable
 fun rememberScrollState(): androidx.compose.foundation.ScrollState {
     return androidx.compose.foundation.rememberScrollState()
+}
+
+@Composable
+fun EditWarehouseDialog(
+    warehouse: WarehouseEntity,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, code: String, manager: String) -> Unit
+) {
+    var name by remember { mutableStateOf(warehouse.name) }
+    var code by remember { mutableStateOf(warehouse.code) }
+    var manager by remember { mutableStateOf(warehouse.manager) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .shadow(8.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Агуулахын Мэдээлэл Засах",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                
+                Divider()
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Агуулахын нэр (*)") },
+                    modifier = Modifier.fillMaxWidth().testTag("edit_wh_name")
+                )
+
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = { Text("Агуулахын код (*)") },
+                    modifier = Modifier.fillMaxWidth().testTag("edit_wh_code")
+                )
+
+                OutlinedTextField(
+                    value = manager,
+                    onValueChange = { manager = it },
+                    label = { Text("Хариуцагч ажилтан / Нярав") },
+                    modifier = Modifier.fillMaxWidth().testTag("edit_wh_manager")
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Болих")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onConfirm(name, code, manager) },
+                        modifier = Modifier.testTag("edit_wh_submit_btn")
+                    ) {
+                        Text("Хадгалах")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeleteWarehouseConfirmDialog(
+    warehouse: WarehouseEntity,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Агуулах устгах") },
+        text = { Text("'${warehouse.name}' агуулахыг устгахдаа итгэлтэй байна уу? Устгаснаар холбоотой гүйлгээнүүд болон үлдэгдэл өөрчлөгдөх эрсдэлтэй.") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Устгах")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Болих")
+            }
+        }
+    )
+}
+
+@Composable
+fun EditTransactionDialog(
+    transaction: TransactionEntity,
+    allItems: List<ItemEntity>,
+    warehouses: List<WarehouseEntity>,
+    onDismiss: () -> Unit,
+    onConfirm: (TransactionEntity) -> Unit
+) {
+    var type by remember { mutableStateOf(transaction.type) }
+    var itemId by remember { mutableStateOf(transaction.itemId) }
+    var quantityString by remember { mutableStateOf(transaction.quantity.toString()) }
+    var fromWarehouseId by remember { mutableStateOf(transaction.fromWarehouseId ?: 0) }
+    var toWarehouseId by remember { mutableStateOf(transaction.toWarehouseId ?: 0) }
+    var partnerName by remember { mutableStateOf(transaction.partnerName) }
+    var remarks by remember { mutableStateOf(transaction.remarks) }
+    var performedBy by remember { mutableStateOf(transaction.performedBy) }
+
+    var itemExpanded by remember { mutableStateOf(false) }
+    var typeExpanded by remember { mutableStateOf(false) }
+    var fromwhExpanded by remember { mutableStateOf(false) }
+    var towhExpanded by remember { mutableStateOf(false) }
+
+    val selectedItem = allItems.find { it.id == itemId }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .shadow(8.dp, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Гүйлгээний Мэдээлэл Засах",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Divider()
+
+                // Гүйлгээний Төрөл
+                Text("Гүйлгээний төрөл (*)", fontSize = 11.sp, color = Color.Gray)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { typeExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        val label = when (type) {
+                            "INCOMING" -> "📥 Орлого хүлээн авах"
+                            "OUTBOUND" -> "📤 Зарлага гаргах"
+                            else -> "🔄 Шилжилт хөдөлгөөн"
+                        }
+                        Text(label)
+                    }
+                    DropdownMenu(
+                        expanded = typeExpanded,
+                        onDismissRequest = { typeExpanded = false }
+                    ) {
+                        listOf("INCOMING" to "📥 Орлого", "OUTBOUND" to "📤 Зарлага", "TRANSFER" to "🔄 Шилжилт").forEach { (tType, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    type = tType
+                                    typeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Бараа сонгох
+                Text("Сонгох бараа (*)", fontSize = 11.sp, color = Color.Gray)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { itemExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(selectedItem?.name ?: "Бараа сонгох")
+                    }
+                    DropdownMenu(
+                        expanded = itemExpanded,
+                        onDismissRequest = { itemExpanded = false }
+                    ) {
+                        allItems.forEach { item ->
+                            DropdownMenuItem(
+                                text = { Text(item.name) },
+                                onClick = {
+                                    itemId = item.id
+                                    itemExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Тоо хэмжээ
+                OutlinedTextField(
+                    value = quantityString,
+                    onValueChange = { quantityString = it },
+                    label = { Text("Тоо хэмжээ (*)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Илгээх Агуулах (Transfer болон Outbound-д хэрэгтэй)
+                if (type == "TRANSFER" || type == "OUTBOUND") {
+                    Text("Илгээх агуулах (*)", fontSize = 11.sp, color = Color.Gray)
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { fromwhExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            val wh = warehouses.find { it.id == fromWarehouseId }
+                            Text(wh?.name ?: "Агуулах сонгох")
+                        }
+                        DropdownMenu(
+                            expanded = fromwhExpanded,
+                            onDismissRequest = { fromwhExpanded = false }
+                        ) {
+                            warehouses.forEach { wh ->
+                                DropdownMenuItem(
+                                    text = { Text(wh.name) },
+                                    onClick = {
+                                        fromWarehouseId = wh.id
+                                        fromwhExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Хүлээн авах Агуулах (Transfer болон Incoming-д хэрэгтэй)
+                if (type == "TRANSFER" || type == "INCOMING") {
+                    Text("Хүлээн авах агуулах (*)", fontSize = 11.sp, color = Color.Gray)
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { towhExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            val wh = warehouses.find { it.id == toWarehouseId }
+                            Text(wh?.name ?: "Агуулах сонгох")
+                        }
+                        DropdownMenu(
+                            expanded = towhExpanded,
+                            onDismissRequest = { towhExpanded = false }
+                        ) {
+                            warehouses.forEach { wh ->
+                                DropdownMenuItem(
+                                    text = { Text(wh.name) },
+                                    onClick = {
+                                        toWarehouseId = wh.id
+                                        towhExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Харилцагч / Түнш
+                OutlinedTextField(
+                    value = partnerName,
+                    onValueChange = { partnerName = it },
+                    label = { Text(if (type == "INCOMING") "Нийлүүлэгч" else if (type == "OUTBOUND") "Хүлээн авагч" else "Харилцагч") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Тайлага / Тэмдэглэл
+                OutlinedTextField(
+                    value = remarks,
+                    onValueChange = { remarks = it },
+                    label = { Text("Тайлбар") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Нярав
+                OutlinedTextField(
+                    value = performedBy,
+                    onValueChange = { performedBy = it },
+                    label = { Text("Хариуцсан нярав") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Болих")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val qty = quantityString.toDoubleOrNull() ?: 0.0
+                            val updatedTx = transaction.copy(
+                                type = type,
+                                itemId = itemId,
+                                quantity = qty,
+                                fromWarehouseId = if (type == "INCOMING") null else fromWarehouseId,
+                                toWarehouseId = if (type == "OUTBOUND") null else toWarehouseId,
+                                partnerName = partnerName,
+                                remarks = remarks,
+                                performedBy = performedBy
+                            )
+                            onConfirm(updatedTx)
+                        }
+                    ) {
+                        Text("Хадгалах")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeleteTransactionConfirmDialog(
+    transaction: TransactionEntity,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Гүйлгээ устгах") },
+        text = { Text("Энэхүү гүйлгээний бүртгэлийг устгахдаа итгэлтэй байна уу? Устгаснаар барааны үлдэгдэл шууд өөрчлөгдөнө.") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Устгах")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Болих")
+            }
+        }
+    )
 }

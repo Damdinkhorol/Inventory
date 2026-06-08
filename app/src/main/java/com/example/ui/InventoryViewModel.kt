@@ -1,5 +1,6 @@
 package com.example.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -28,10 +29,10 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
     private val _uiMessage = MutableSharedFlow<UiMessage>()
     val uiMessage = _uiMessage.asSharedFlow()
 
-    init {
+    fun initializeDatabase(context: Context) {
         viewModelScope.launch {
             // Демо мэдээллүүд урьдчилан бэлтгэх функцийг ажиллуулна
-            repository.prepopulateIfEmpty()
+            repository.prepopulateIfEmpty(context)
         }
     }
 
@@ -67,12 +68,68 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Гүйлгээний түүх (Төрлөөр нь шүүж харуулна)
+    private val _txYearFilter = MutableStateFlow<Int?>(null)
+    val txYearFilter = _txYearFilter.asStateFlow()
+
+    private val _txMonthFilter = MutableStateFlow<Int?>(null)
+    val txMonthFilter = _txMonthFilter.asStateFlow()
+
+    private val _txDayFilter = MutableStateFlow<Int?>(null)
+    val txDayFilter = _txDayFilter.asStateFlow()
+
+    // --- Dashboard Specific Date Filters ---
+    private val _dbYearFilter = MutableStateFlow<Int?>(null)
+    val dbYearFilter = _dbYearFilter.asStateFlow()
+
+    private val _dbMonthFilter = MutableStateFlow<Int?>(null)
+    val dbMonthFilter = _dbMonthFilter.asStateFlow()
+
+    private val _dbDayFilter = MutableStateFlow<Int?>(null)
+    val dbDayFilter = _dbDayFilter.asStateFlow()
+
+    // Гүйлгээний түүх (Төрөл болон огноогоор нь шүүж харуулна)
     val filteredTransactions: StateFlow<List<TransactionEntity>> = combine(
         repository.allTransactions,
-        _txTypeFilter
-    ) { txs, filter ->
-        if (filter == "ALL") txs else txs.filter { it.type == filter }
+        _txTypeFilter,
+        _txYearFilter,
+        _txMonthFilter,
+        _txDayFilter
+    ) { txs, filter, year, month, day ->
+        val filteredByType = if (filter == "ALL") txs else txs.filter { it.type == filter }
+        filteredByType.filter { tx ->
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+            val txYear = cal.get(java.util.Calendar.YEAR)
+            val txMonth = cal.get(java.util.Calendar.MONTH) + 1
+            val txDay = cal.get(java.util.Calendar.DAY_OF_MONTH)
+
+            val matchesYear = year == null || txYear == year
+            val matchesMonth = month == null || txMonth == month
+            val matchesDay = day == null || txDay == day
+
+            matchesYear && matchesMonth && matchesDay
+        }
+    }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Хяналтын самбарын огноогоор шүүсэн гүйлгээнүүд
+    val dashboardTransactions: StateFlow<List<TransactionEntity>> = combine(
+        repository.allTransactions,
+        _dbYearFilter,
+        _dbMonthFilter,
+        _dbDayFilter
+    ) { txs, year, month, day ->
+        txs.filter { tx ->
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = tx.timestamp }
+            val txYear = cal.get(java.util.Calendar.YEAR)
+            val txMonth = cal.get(java.util.Calendar.MONTH) + 1
+            val txDay = cal.get(java.util.Calendar.DAY_OF_MONTH)
+
+            val matchesYear = year == null || txYear == year
+            val matchesMonth = month == null || txMonth == month
+            val matchesDay = day == null || txDay == day
+
+            matchesYear && matchesMonth && matchesDay
+        }
     }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -94,6 +151,18 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
 
     fun updateTxTypeFilter(filter: String) {
         _txTypeFilter.value = filter
+    }
+
+    fun updateDateFilters(year: Int?, month: Int?, day: Int?) {
+        _txYearFilter.value = year
+        _txMonthFilter.value = month
+        _txDayFilter.value = day
+    }
+
+    fun updateDbDateFilters(year: Int?, month: Int?, day: Int?) {
+        _dbYearFilter.value = year
+        _dbMonthFilter.value = month
+        _dbDayFilter.value = day
     }
 
     // --- Action Handlers ---
@@ -278,6 +347,74 @@ class InventoryViewModel(private val repository: InventoryRepository) : ViewMode
             )
             repository.insertTransaction(tx)
             _uiMessage.emit(UiMessage.Success("Зарлагын гүйлгээ амжилттай бүртгэгдлээ."))
+        }
+    }
+
+    /**
+     * Агуулахын мэдээлэл шинэчлэх
+     */
+    fun updateWarehouse(warehouse: WarehouseEntity) {
+        viewModelScope.launch {
+            if (warehouse.name.isBlank() || warehouse.code.isBlank()) {
+                _uiMessage.emit(UiMessage.Error("Агуулахын нэр болон кодыг заавал оруулна уу!"))
+                return@launch
+            }
+            repository.updateWarehouse(warehouse)
+            _uiMessage.emit(UiMessage.Success("'${warehouse.name}' агуулахын мэдээлэл амжилттай шинэчлэгдлээ."))
+        }
+    }
+
+    /**
+     * Агуулах устгах
+     */
+    fun deleteWarehouse(warehouse: WarehouseEntity) {
+        viewModelScope.launch {
+            repository.deleteWarehouse(warehouse)
+            _uiMessage.emit(UiMessage.Success("'${warehouse.name}' агуулахыг амжилттай устгалаа."))
+        }
+    }
+
+    /**
+     * Гүйлгээний мэдээлэл шинэчлэх
+     */
+    fun updateTransaction(transaction: TransactionEntity) {
+        viewModelScope.launch {
+            if (transaction.quantity <= 0.0) {
+                _uiMessage.emit(UiMessage.Error("Тоо хэмжээ 0-ээс их байх ёстой!"))
+                return@launch
+            }
+            repository.updateTransaction(transaction)
+            _uiMessage.emit(UiMessage.Success("Гүйлгээний мэдээллийг амжилттай шинэчлэлээ."))
+        }
+    }
+
+    /**
+     * Гүйлгээ устгах
+     */
+    fun deleteTransaction(transaction: TransactionEntity) {
+        viewModelScope.launch {
+            repository.deleteTransaction(transaction)
+            _uiMessage.emit(UiMessage.Success("Гүйлгээний бүртгэлийг амжилттай устгалаа."))
+        }
+    }
+
+    /**
+     * Системийн бүх өгөгдлийг устгах
+     */
+    fun clearAllData(context: Context) {
+        viewModelScope.launch {
+            repository.clearAllDatabase(context)
+            _uiMessage.emit(UiMessage.Success("Бүх оруулсан өгөгдлийг амжилттай устгаж, системийг цэвэрлэлээ."))
+        }
+    }
+
+    /**
+     * Анхны демо өгөгдлийг сэргээж оруулах
+     */
+    fun resetToDemoData(context: Context) {
+        viewModelScope.launch {
+            repository.forcePrepopulate(context)
+            _uiMessage.emit(UiMessage.Success("Анхны демо өгөгдлийг амжилттай сэргээж орууллаа."))
         }
     }
 }
